@@ -17,7 +17,7 @@ function getMessageFromBundle(channelBundle) {
         var signature = tail.getSignature();
         var merkleHashes = transactions.remove(0).getSignature();
         var hashEnd = 0;
-        var index = (int) Converter.longValue(tail.getTagValue().trits(), 0, 15);
+        var index = Converter.longValue(tail.getTagValue().trits(), 0, 15);
         for(var i = 0; i < merkleHashes.length; i+= Hash.SIZE_IN_TRITS) {
             if(new Hash(Arrays.copyOfRange(merkleHashes, i, i + Hash.SIZE_IN_TRITS)).equals(Hash.NULL_HASH)) {
                 break;
