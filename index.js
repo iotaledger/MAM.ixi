@@ -1,79 +1,85 @@
-var Callable = Java.type("com.iota.iri.service.CallableRequest");
-var IXIResponse = Java.type("com.iota.iri.service.dto.IXIResponse");
-var ErrorResponse = Java.type("com.iota.iri.service.dto.ErrorResponse");
-var ISS = Java.type("com.iota.iri.hash.ISS");
-var AddressViewModel = com.iota.iri.controllers.AddressViewModel;
-var TransactionViewModel = com.iota.iri.controllers.TransactionViewModel;
-var BundleValidator = com.iota.iri.BundleValidator;
-var Converter = com.iota.iri.utils.Converter;
-var Hash = com.iota.iri.model.Hash;
+var iri = com.iota.iri;
+var Callable = iri.service.CallableRequest;
+var Response = iri.service.dto.IXIResponse;
+var Error = iri.service.dto.ErrorResponse;
+var ISS = iri.hash.ISS;
+var Transaction = iri.controllers.TransactionViewModel;
+var Hashes = iri.controllers.HashesViewModel;
+var Bundle = iri.BundleValidator;
+var Converter = iri.utils.Converter;
+var Hash = iri.model.Hash;
 
 print("MAM extension started... ");
 
-function getMessageFromBundle(channelBundle, verify) {
-    var bundleValidator = new BundleValidator(channelBundle);
-    var signatureTrits = bundleValidator.getTransactions().stream().filter(function(l) { return l.size() > 1 }).map(function(transactions) {
-        var out = {};
-        if(verify) {
-            var tail = transactions.remove(0);
-            var signature = tail.getSignature();
-            var merkleHashes = transactions.remove(0).getSignature();
-            var hashEnd = 0;
-            var index = Converter.longValue(tail.getTagValue().trits(), 0, 15);
-            for(var i = 0; i < merkleHashes.length; i+= Hash.SIZE_IN_TRITS) {
-                if(new Hash(Arrays.copyOfRange(merkleHashes, i, i + Hash.SIZE_IN_TRITS)).equals(Hash.NULL_HASH)) {
-                    break;
-                } else {
-                    hashEnd++;
+function getMessageFromBundle(bundle, verify) {
+    print("Hello, bundle.")
+    print("Bundle size: " + bundle.getTransactions().size())
+    return bundle.getTransactions().stream()
+        .filter(function (l) { return l.size() > 1 })
+        .map(function (transactions) {
+            var out = {};
+            print("Hello, trytes.")
+            if (verify) {
+                var tail = transactions.remove(0);
+                var signature = tail.getSignature();
+                var merkleHashes = transactions.remove(0).getSignature();
+                var hashEnd = 0;
+                var index = Converter.longValue(tail.getTagValue().trits(), 0, 15);
+                for (var i = 0; i < merkleHashes.length; i += Hash.SIZE_IN_TRITS) {
+                    if (new Hash(Arrays.copyOfRange(merkleHashes, i, i + Hash.SIZE_IN_TRITS)).equals(Hash.NULL_HASH)) {
+                        break;
+                    } else {
+                        hashEnd++;
+                    }
                 }
+                var curl = new Curl();
+                var message = transactions.stream().map(function (t) { t.getSignature() }).reduce(function (a, b) { return ArrayUtils.addAll(a, b) }).orElse(null);
+                var hash = new int[Hash.SIZE_IN_TRITS];
+                curl.absorb(message, 0, message.length);
+                curl.squeeze(hash, 0, Hash.SIZE_IN_TRITS);
+                var root = ISS.getMerkleRoot(ISS.address(ISS.digest(Arrays.copyOf(ISS.normalizedBundle(hash),
+                    ISS.NUMBER_OF_FRAGMENT_CHUNKS), signature)), merkleHashes, 0, index, hashEnd);
+                out.signature = Converter.trytes(signature);
+                out.tree = Converter.trytes(merkleHashes);
+                out.address = Converter.trytes(root);
             }
-            var curl = new Curl();
-            var message = transactions.stream().map(function(t) {t.getSignature()}).reduce(function(a, b) { return ArrayUtils.addAll(a,b) }).orElse(null);
-            var hash = new int[Hash.SIZE_IN_TRITS];
-            curl.absorb(message, 0, message.length);
-            curl.squeeze(hash, 0, Hash.SIZE_IN_TRITS);
-            var root = ISS.getMerkleRoot(ISS.address(ISS.digest(Arrays.copyOf(ISS.normalizedBundle(hash),
-                ISS.NUMBER_OF_FRAGMENT_CHUNKS), signature)), merkleHashes, 0, index, hashEnd);
-            out.signature =Converter.trytes(signature);
-            out.tree = Converter.trytes(merkleHashes);
-            out.address = Converter.trytes(root);
-        } 
-        out.trytes = transactions.stream().map(function(tx) { return tx.trits() }).toArray();
-        return IXIResponse.create(out);
-    }).findFirst().orElse(ErrorResponse.create("Could not find message"));
+            out.message = transactions.stream().map(function (tx) { return Converter.trytes(tx.getSignature())}).toArray();
+            return Response.create(out);
+        }).findFirst()
+        .orElse(Error.create("Bundle not valid"));
 }
 
 function hashHasIndex(hash, index) {
-    return index == Converter.longValue(TransactionViewModel.fromHash(hash).trits(),
-        TransactionViewModel.TAG_TRINARY_OFFSET,
-        TransactionViewModel.TAG_TRINARY_SIZE)
+    return index == Converter.longValue(Transaction.fromHash(hash).trits(),
+        Transaction.TAG_TRINARY_OFFSET,
+        Transaction.TAG_TRINARY_SIZE)
 }
 
 function getMessage(request) {
-    print("message get started");
     var channelString, indexString, channelId, index, channel, transactions, hashes, hash, tailTransaction, bundle, message;
     channelString = request.get("channel");
-    if(channelString == null) {
-        return ErrorResponse.create("Must define `channel`");
+    if (channelString == null) {
+        return Error.create("Must define `channel`");
     }
-    indexString = request.get("index");
-    if(indexString == null) {
-        return ErrorResponse.create("Must define `index`");
+    var verify = request.get("verify") != null;
+    if (verify) {
+        indexString = request.get("index");
+        if (indexString == null) {
+            return ErrorResponse.create("Must define `index`");
+        }
     }
     channelId = new Hash(channelString);
     index = parseInt(indexString);
-    channel = new AddressViewModel(channelId);
-    hashes = channel.getTransactionHashes();
-    var messageTransaction = java.util.Arrays.stream(hashes).map(function(h) {
-        return TransactionViewModel.fromHash(h);
-    }).filter(function(tx) {
-        return Converter.longValue(tx.trits(), TransactionViewModel.TAG_TRINARY_OFFSET, 15) == index;
-    }).findFirst().orElse(null);
+    channel = com.iota.iri.controllers.HashesViewModel.load(channelId);
+    hashes = channel.getHashes();
+    var messageTransaction = hashes.stream().map(function (h) { return Transaction.fromHash(h) })
+        .filter(function (tx) { return !verify || Converter.longValue(tx.trits(), Transaction.TAG_TRINARY_OFFSET, 15) == index })
+        .findFirst().orElse(null);
 
-    if(messageTransaction == null) {
-        return ErrorResponse.create("Message not found.");
+    if (messageTransaction == null) {
+        return Error.create("Message not found.");
     }
-    return getMessageFromBundle(messageTransaction.getBundle(), request.get("verify") != null);
+    return getMessageFromBundle(Bundle.load(messageTransaction.getBundle()), verify);
 }
 
-API.put("getMessage", new Callable({call: getMessage}));
+API.put("getMessage", new Callable({ call: getMessage }));
