@@ -44,6 +44,7 @@ function getMessageFromBundle(bundle, verify) {
                 out.address = Converter.trytes(root);
             }
             out.message = transactions.stream().map(function (tx) { return Converter.trytes(tx.getSignature())}).toArray();
+            out.index = Converter.longValue(transactions.get(0).trits(), Transaction.TAG_TRINARY_OFFSET, 15);
             return Response.create(out);
         }).findFirst()
         .orElse(Error.create("Bundle not valid"));
