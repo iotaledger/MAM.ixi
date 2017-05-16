@@ -4,8 +4,9 @@ var Response = iri.service.dto.IXIResponse;
 var Error = iri.service.dto.ErrorResponse;
 var ISS = iri.hash.ISS;
 var Transaction = iri.controllers.TransactionViewModel;
-var Hashes = iri.controllers.HashesViewModel;
-var Bundle = iri.BundleValidator;
+var Address = iri.controllers.AddressViewModel;
+var Bundle = iri.controllers.BundleViewModel;
+var BundleValidator = iri.BundleValidator;
 var Converter = iri.utils.Converter;
 var Hash = iri.model.Hash;
 
@@ -17,12 +18,12 @@ function getMessage(request) {
   if (channelID == null) {
     return Error.create("Must define `channel`");
   }
-  var out = Hashes.load(new Hash(channelID)).getHashes().stream()
+  var out = Address.load(new Hash(channelID)).getHashes().stream()
     .map(function (h) { return Transaction.quietFromHash(h) })
     .map(function (tx) { return tx.getBundleHash() })
     .distinct()
-    .map(function (bh) { return Hashes.load(bh) })
-    .map(function (hashes) { return Bundle.load(hashes) })
+    .map(function (bh) { return Bundle.load(bh) })
+    .map(function (hashes) { return BundleValidator.load(hashes) })
     .map(function (bundle) { return bundle.getTransactions().stream()
         .map(function (transactions) {
           print("hello, tx")
