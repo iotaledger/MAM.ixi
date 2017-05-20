@@ -18,13 +18,12 @@ function getMessage(request) {
   if (channelID == null) {
     return Error.create("Must define `channel`");
   }
-  var out = Address.load(new Hash(channelID)).getHashes().stream()
-    .map(function (h) { return Transaction.quietFromHash(h) })
+  var out = Address.load(IOTA.tangle, new Hash(channelID)).getHashes().stream()
+    .map(function (h) { return Transaction.quietFromHash(IOTA.tangle, h) })
     .map(function (tx) { return tx.getBundleHash() })
     .distinct()
-    .map(function (bh) { return Bundle.load(bh) })
-    .map(function (hashes) { return BundleValidator.load(hashes) })
-    .map(function (bundle) { return bundle.getTransactions().stream()
+    .map(function (bh) { return BundleValidator.validate(IOTA.tangle, bh) })
+    .map(function (bundleTransactions) { return bundleTransactions.stream()
         .map(function (transactions) {
           print("hello, tx")
           print(transactions.size())
