@@ -25,13 +25,11 @@ function getMessage(request) {
     .map(function (bh) { return BundleValidator.validate(IOTA.tangle, bh) })
     .map(function (bundleTransactions) { return bundleTransactions.stream()
         .map(function (transactions) {
-          print("hello, tx")
           print(transactions.size())
           out = {
             message: transactions.stream().map(function (tx) { return Converter.trytes(tx.getSignature())}).toArray(),
-            index: Converter.longValue(transactions.get(0).trits(), Transaction.TAG_TRINARY_OFFSET, 15)
+            tag: Converter.trytes(transactions.get(0).trits(), Transaction.TAG_TRINARY_OFFSET, Transaction.TAG_TRINARY_SIZE)
           }
-          print("index: " + out.index);
           return out;
         }).findFirst().orElse(null);//.toArray();
     })
