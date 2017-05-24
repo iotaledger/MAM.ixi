@@ -25,7 +25,6 @@ function getMessage(request) {
     .map(function (bh) { return BundleValidator.validate(IOTA.tangle, bh) })
     .map(function (bundleTransactions) { return bundleTransactions.stream()
         .map(function (transactions) {
-          print(transactions.size())
           out = {
             message: transactions.stream().map(function (tx) { return Converter.trytes(tx.getSignature())}).toArray(),
             tag: Converter.trytes(transactions.get(0).trits(), Transaction.TAG_TRINARY_OFFSET, Transaction.TAG_TRINARY_SIZE)
@@ -37,7 +36,6 @@ function getMessage(request) {
   if (out == null || out.length == 0) {
     return Error.create("Message not found.");
   }
-  print(out[0]);
   return Response.create(out);
 }
 
