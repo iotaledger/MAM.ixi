@@ -1,3 +1,5 @@
 {
-  "main": "index.js"
+  "main": "index.js",
+  "engine": "JavaScript",
+  "public": ["getMessage"]
 }
